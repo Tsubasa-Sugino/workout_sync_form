@@ -1,0 +1,9 @@
+# Core
+mediapipe==0.10.32
+numpy<2
+
+# Video I/O
+opencv-python>=4.8
+
+# Visualization
+plotly>=5.18
