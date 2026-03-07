@@ -1,4 +1,5 @@
 import copy
+import json
 
 import cv2
 import mediapipe as mp
@@ -303,6 +304,21 @@ class PoseVisualizer3D:
 
         return fig
 
+    def save_json(self, pose_data, output_path):
+        """解析結果をJSONファイルに保存するよ．"""
+        if not pose_data:
+            print("保存するデータがないよ．")
+            return False
+
+        try:
+            with open(output_path, "w") as f:
+                json.dump(pose_data, f, indent=4)
+            print(f"解析結果を '{output_path}' に保存したよ．")
+            return True
+        except Exception as e:
+            print(f"データの保存に失敗したよ: {e}")
+            return False
+
     # ==========================================
     # 3. 全体コントロール（司令塔）
     # ==========================================
@@ -313,22 +329,23 @@ class PoseVisualizer3D:
         show_console=False,
         save_2d=False,
         show_3d=False,
+        save_json=False,
     ):
         """入力タイプを自動判別して適切な処理フローに流すまとめ役だよ．"""
         if self.input_type == "image":
             return self._process_image(
-                source_path, output_base_name, show_console, save_2d, show_3d
+                source_path, output_base_name, show_console, save_2d, show_3d, save_json
             )
         elif self.input_type == "video":
             return self._process_video(
-                source_path, output_base_name, show_console, save_2d, show_3d
+                source_path, output_base_name, show_console, save_2d, show_3d, save_json
             )
         else:
             print("エラー: 未対応のモードだよ．")
             return False
 
     def _process_image(
-        self, source_path, output_base_name, show_console, save_2d, show_3d
+        self, source_path, output_base_name, show_console, save_2d, show_3d, save_json
     ):
         """静止画専用の処理フローだよ．"""
         image = cv2.imread(source_path)
@@ -355,11 +372,20 @@ class PoseVisualizer3D:
                 out_html_path = f"{output_base_name}_3d.html"
                 fig.write_html(out_html_path)
                 print(f"3Dプロットを '{out_html_path}' に保存したよ．")
+        if save_json:
+            json_path = f"{output_base_name}.json"
+            self.save_json(pose_data, json_path)
 
         return True
 
     def _process_video(
-        self, source_path, output_base_name, show_console, save_2d, show_3d
+        self,
+        source_path,
+        output_base_name,
+        show_console,
+        save_2d,
+        show_3d,
+        save_json=False,
     ):
         """動画専用の処理フローだよ．全フレームの3Dアニメーションに対応！"""
         cap = cv2.VideoCapture(source_path)
@@ -471,6 +497,10 @@ class PoseVisualizer3D:
                 )
         else:
             print("すべての動画処理が完了したよ！")
+
+        if save_json:
+            json_path = f"{output_base_name}.json"
+            self.save_json(all_frames_data, json_path)
 
         return True
 
@@ -599,9 +629,10 @@ if __name__ == "__main__":
         model_path="pose_landmarker_heavy.task", input_type="video"
     )
     visualizer.process_file(
-        source_path="sandbox/IMG_7940.MOV",
-        output_base_name="output_video_result",
+        source_path="video/squad2.MOV",
+        output_base_name="result/output_video_result2",
         show_console=False,  # 座標を見たい時はTrueにしてね
         save_2d=True,  # 骨格が描画された動画を保存するよ
         show_3d=True,  # 最初のフレームの3Dグラフを保存するよ
+        save_json=True,  # 解析結果をJSONファイルに保存するよ
     )
