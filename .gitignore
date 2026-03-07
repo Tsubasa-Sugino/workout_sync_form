@@ -212,4 +212,4 @@ clips/
 .vscode/
 **/result/*.mp4
 *.html
-.png
+*.png
