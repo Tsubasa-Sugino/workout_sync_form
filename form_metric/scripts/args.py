@@ -51,6 +51,69 @@ def add_squat_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--deadlift_high_min_deg",
+        type=float,
+        default=170.0,
+        help="デッドリフト開始/終了判定に使う膝角の下限",
+    )
+    parser.add_argument(
+        "--deadlift_high_max_deg",
+        type=float,
+        default=180.0,
+        help="デッドリフト開始/終了判定に使う膝角の上限",
+    )
+    parser.add_argument(
+        "--deadlift_min_drop_deg",
+        type=float,
+        default=12.0,
+        help="開始角度から必要な最小屈曲量",
+    )
+    parser.add_argument(
+        "--deadlift_min_recovery_deg",
+        type=float,
+        default=10.0,
+        help="最小角度から必要な最小伸展量",
+    )
+    parser.add_argument(
+        "--deadlift_min_rep_frames",
+        type=int,
+        default=8,
+        help="デッドリフト1レップ最小フレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_max_rep_frames",
+        type=int,
+        default=240,
+        help="デッドリフト1レップ最大フレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_pre_frames",
+        type=int,
+        default=10,
+        help="デッドリフト検出区間の前に足すフレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_post_frames",
+        type=int,
+        default=10,
+        help="デッドリフト検出区間の後に足すフレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_merge_gap_frames",
+        type=int,
+        default=0,
+        help="近いデッドリフト検出区間を結合する最大ギャップ",
+    )
+    parser.add_argument(
+        "--deadlift_ema_alpha",
+        type=float,
+        default=0.25,
+        help="デッドリフト膝角平滑化のEMA係数",
+    )
+
+
 def build_main_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate form for one or more exercises via a single entrypoint.",
@@ -60,7 +123,7 @@ def build_main_parser() -> argparse.ArgumentParser:
         action="append",
         required=True,
         metavar="EXERCISE",
-        help="評価種目。複数指定可能（--template/--target と同じ回数指定）。例: squat",
+        help="評価種目。複数指定可能（--template/--target と同じ回数指定）。例: squat, deadlift",
     )
     parser.add_argument(
         "--template",
@@ -78,6 +141,7 @@ def build_main_parser() -> argparse.ArgumentParser:
     )
     add_common_runtime_arguments(parser)
     add_squat_arguments(parser)
+    add_deadlift_arguments(parser)
     return parser
 
 
@@ -88,4 +152,3 @@ def build_compare_squat_parser() -> argparse.ArgumentParser:
     add_common_runtime_arguments(parser)
     add_squat_arguments(parser)
     return parser
-
