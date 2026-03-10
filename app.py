@@ -4,6 +4,7 @@
 動画やカメラ入力からフォームを可視化・評価するStreamlitアプリケーション。
 """
 import streamlit as st
+from streamlit_image_select import image_select
 
 
 def clear_video_state() -> None:
@@ -36,28 +37,35 @@ def main() -> None:
     st.write("筋トレのフォームを理想に近づけよう！")
 
     st.header("種目選択")
-    st.write("評価したい筋トレの種目を選択してください。")
 
     if "exercise" not in st.session_state:
         st.session_state.exercise = None
 
     current_exercise = st.session_state.exercise
 
-    left, middle, right = st.columns(3)
-    if left.button("スクワット", width="stretch"):
-        if current_exercise != "スクワット":
-            clear_video_state()
-        st.session_state.exercise = "スクワット"
-        st.switch_page("pages/upload_videos.py")
-    elif middle.button("ベンチプレス", width="stretch"):
-        if current_exercise != "ベンチプレス":
-            clear_video_state()
-        st.session_state.exercise = "ベンチプレス"
-        st.switch_page("pages/upload_videos.py")
-    elif right.button("デッドリフト", width="stretch"):
-        if current_exercise != "デッドリフト":
-            clear_video_state()
-        st.session_state.exercise = "デッドリフト"
+    exercise_options = [
+        ("menu_images/bench_press.png", "ベンチプレス"),
+        ("menu_images/deadlift.png", "デッドリフト"),
+        ("menu_images/squat.png", "スクワット"),
+    ]
+    image_to_caption = {
+        image_path: caption for image_path, caption in exercise_options
+    }
+
+    img = image_select(
+        "評価したい筋トレの種目を選択してください。",
+        images=[item[0] for item in exercise_options],
+        captions=[item[1] for item in exercise_options],
+    )
+    selected_exercise = image_to_caption.get(img)
+    if selected_exercise and selected_exercise != current_exercise:
+        clear_video_state()
+        st.session_state.exercise = selected_exercise
+
+    if selected_exercise:
+        st.info(f"選択中の種目: **{selected_exercise}**")
+
+    if st.button("動画入力へ"):
         st.switch_page("pages/upload_videos.py")
 
 
