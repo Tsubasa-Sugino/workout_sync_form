@@ -1,43 +1,62 @@
-import tempfile
+import base64
+import os
+import subprocess
 
-import streamlit as st
+import cv2
+from IPython.display import HTML, display
 
-# 旧（エラーが出る書き方）
-# from moviepy.editor import VideoFileClip
-# 新（MoviePy 2.0 以降の書き方）
-from moviepy import VideoFileClip
 
-st.title("動画トリミングツール")
+def save_and_view_video_clip(video_path, start_frame, end_frame, save_dir="clips"):
+    # 1. 保存用ディレクトリの作成
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        print(f"Created directory: {save_dir}")
 
-# 1. ファイルのアップロード
-uploaded_file = st.sidebar.file_uploader(
-    "動画を選択してください．", type=["mp4", "mov", "avi"]
-)
+    # 2. 動画情報の取得
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    cap.release()
 
-if uploaded_file is not None:
-    # 一時ファイルとして保存
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
+    if fps <= 0:
+        print("Error: FPSが取得できませんでした．")
+        return
 
-    # 動画の読み込み
-    video = VideoFileClip(tfile.name)
-    duration = video.duration
+    # 3. 出力ファイル名の設定（元のファイル名 + フレーム範囲）
+    base_name = os.path.splitext(os.path.basename(video_path))[0]
+    output_filename = f"{base_name}_{start_frame}_{end_frame}.mp4"
+    output_path = os.path.join(save_dir, output_filename)
 
-    st.write(f"動画の長さ: {duration:.2f} 秒")
+    # 4. FFmpegで切り出し・保存
+    start_sec = start_frame / fps
+    duration_sec = (end_frame - start_frame) / fps
 
-    # 2. UIで切り取り範囲を選択
-    start_time, end_time = st.slider(
-        "切り取る範囲を選択してください（秒）", 0.0, duration, (0.0, duration)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-ss",
+        f"{start_sec:.3f}",
+        "-i",
+        video_path,
+        "-t",
+        f"{duration_sec:.3f}",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        output_path,
+    ]
+    subprocess.run(cmd)
+    print(f"Saved clip to: {output_path}")
+
+    # 5. ついでにノートブック上でも確認（任意）
+    with open(output_path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("ascii")
+    display(
+        HTML(
+            f'<video width="400" controls><source src="data:video/mp4;base64,{data}" type="video/mp4"></video>'
+        )
     )
-
-    if st.button("カットを実行"):
-        with st.spinner("処理中..."):
-            # 3. 編集処理
-            trimmed_video = video.subclipped(start_time, end_time)
-            output_path = "trimmed_video.mp4"
-            trimmed_video.write_videofile(output_path, codec="libx264")
-
-            # 4. 結果の表示とダウンロード
-            st.video(output_path)
-            with open(output_path, "rb") as file:
-                st.download_button("保存した動画をダウンロード", file, "trimmed.mp4")
