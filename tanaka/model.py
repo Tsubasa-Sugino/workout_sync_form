@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 
 import cv2
 import mediapipe as mp
@@ -376,7 +377,11 @@ class PoseVisualizer3D:
             json_path = f"{output_base_name}.json"
             self.save_json(pose_data, json_path)
 
-        return True
+        if pose_data:
+            return pose_data
+        else:
+            print("解析データがないから、3DプロットもJSON保存もスキップしたよ。")
+            return None
 
     def _process_video(
         self,
@@ -502,7 +507,11 @@ class PoseVisualizer3D:
             json_path = f"{output_base_name}.json"
             self.save_json(all_frames_data, json_path)
 
-        return True
+        if all_frames_data:
+            return all_frames_data
+        else:
+            print("解析データがないから、3DプロットもJSON保存もスキップしたよ。")
+            return None
 
 
 class PoseDataSmoother:
@@ -625,12 +634,22 @@ if __name__ == "__main__":
     # )
 
     # 動画モードで実行したい場合
+
+    # setting
+    video_dhr = "video"
+    video_path_name = "squad1"
+    video_type = ".MOV"
+    #
+
+    input_video = os.path.join(video_dhr, video_path_name + video_type)
+    output_base_name = os.path.join("result", video_path_name)
+
     visualizer = PoseVisualizer3D(
         model_path="pose_landmarker_heavy.task", input_type="video"
     )
     visualizer.process_file(
-        source_path="video/squad2.MOV",
-        output_base_name="result/output_video_result2",
+        source_path=input_video,
+        output_base_name=output_base_name,
         show_console=False,  # 座標を見たい時はTrueにしてね
         save_2d=True,  # 骨格が描画された動画を保存するよ
         show_3d=True,  # 最初のフレームの3Dグラフを保存するよ
