@@ -148,6 +148,14 @@ def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_benchpress_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--benchpress_compare_out_dir",
+        default="output/benchpress_compare",
+        help="ベンチプレス比較結果JSONの保存先ディレクトリ",
+    )
+
+
 def build_main_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate form for one or more exercises via a single entrypoint.",
@@ -157,7 +165,7 @@ def build_main_parser() -> argparse.ArgumentParser:
         action="append",
         required=True,
         metavar="EXERCISE",
-        help="評価種目。複数指定可能（--template/--target と同じ回数指定）。例: squat, deadlift",
+        help="評価種目。複数指定可能（--template/--target と同じ回数指定）。例: squat, deadlift, benchpress",
     )
     parser.add_argument(
         "--template",
@@ -176,6 +184,7 @@ def build_main_parser() -> argparse.ArgumentParser:
     add_common_runtime_arguments(parser)
     add_squat_arguments(parser)
     add_deadlift_arguments(parser)
+    add_benchpress_arguments(parser)
     return parser
 
 

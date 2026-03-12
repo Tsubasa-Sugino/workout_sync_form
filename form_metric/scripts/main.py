@@ -17,6 +17,10 @@ from args import build_main_parser
 
 EXERCISE_ALIASES = {
     "squad": "squat",
+    "bench": "benchpress",
+    "bench_press": "benchpress",
+    "bench-press": "benchpress",
+    "bentipress": "benchpress",
 }
 
 
@@ -25,19 +29,36 @@ def _build_tasks(
     template_videos: List[str],
     target_videos: List[str],
 ) -> List[Tuple[str, str, str]]:
-    if not (len(exercises) == len(template_videos) == len(target_videos)):
+    norm_exercises = [EXERCISE_ALIASES.get(ex.strip().lower(), ex.strip().lower()) for ex in exercises]
+    templates = [tpl.strip() for tpl in template_videos]
+    targets = [tgt.strip() for tgt in target_videos]
+
+    # ベンチプレスのみ、template 1本 + target 複数本を許可する
+    if (
+        len(norm_exercises) == 1
+        and len(templates) == 1
+        and len(targets) >= 1
+        and norm_exercises[0] == "benchpress"
+    ):
+        ex = norm_exercises[0]
+        tpl = templates[0]
+        if not ex or not tpl:
+            raise ValueError("--task and --template must be non-empty.")
+        tasks = []
+        for tgt in targets:
+            if not tgt:
+                raise ValueError("--target must be non-empty.")
+            tasks.append((ex, tpl, tgt))
+        return tasks
+
+    if not (len(norm_exercises) == len(templates) == len(targets)):
         raise ValueError(
-            "The number of --task, --template, and --target values must match."
+            "The number of --task, --template, and --target values must match "
+            "(except benchpress: 1 template with multiple targets is allowed)."
         )
 
     tasks: List[Tuple[str, str, str]] = []
-    for exercise, template_video, target_video in zip(
-        exercises, template_videos, target_videos
-    ):
-        ex_raw = exercise.strip().lower()
-        ex = EXERCISE_ALIASES.get(ex_raw, ex_raw)
-        tpl = template_video.strip()
-        tgt = target_video.strip()
+    for ex, tpl, tgt in zip(norm_exercises, templates, targets):
         if not ex or not tpl or not tgt:
             raise ValueError(
                 "--task, --template, and --target must all be non-empty."
