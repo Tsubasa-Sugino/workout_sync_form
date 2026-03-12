@@ -7,3 +7,13 @@ opencv-python>=4.8
 
 # Visualization
 plotly>=5.18
+matplotlib
+
+# Data/ML
+scipy
+scikit-learn
+pandas
+dtaidistance
+
+# Notebook utilities
+ipython
