@@ -15,6 +15,11 @@ if ROOT_DIR not in sys.path:
 from args import build_main_parser
 
 
+EXERCISE_ALIASES = {
+    "squad": "squat",
+}
+
+
 def _build_tasks(
     exercises: List[str],
     template_videos: List[str],
@@ -29,7 +34,8 @@ def _build_tasks(
     for exercise, template_video, target_video in zip(
         exercises, template_videos, target_videos
     ):
-        ex = exercise.strip().lower()
+        ex_raw = exercise.strip().lower()
+        ex = EXERCISE_ALIASES.get(ex_raw, ex_raw)
         tpl = template_video.strip()
         tgt = target_video.strip()
         if not ex or not tpl or not tgt:

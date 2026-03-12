@@ -49,6 +49,23 @@ def add_squat_arguments(parser: argparse.ArgumentParser) -> None:
         default=0.25,
         help="膝角平滑化のEMA係数",
     )
+    parser.add_argument(
+        "--squat_pca_step_size",
+        type=int,
+        default=2,
+        help="PCA+DTW でターゲットを走査するステップ幅（フレーム）",
+    )
+    parser.add_argument(
+        "--squat_pca_dtw_threshold",
+        type=float,
+        default=0.0,
+        help="PCA+DTW 検出しきい値。<=0 のときは自動推定",
+    )
+    parser.add_argument(
+        "--squat_compare_out_dir",
+        default="output/squat_compare",
+        help="スクワット比較クリップ/結果JSONの保存先ディレクトリ",
+    )
 
 
 def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
@@ -111,6 +128,23 @@ def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=0.25,
         help="デッドリフト膝角平滑化のEMA係数",
+    )
+    parser.add_argument(
+        "--deadlift_pca_step_size",
+        type=int,
+        default=2,
+        help="PCA+DTW でターゲットを走査するステップ幅（フレーム）",
+    )
+    parser.add_argument(
+        "--deadlift_pca_dtw_threshold",
+        type=float,
+        default=0.0,
+        help="PCA+DTW 検出しきい値。<=0 のときは自動推定",
+    )
+    parser.add_argument(
+        "--deadlift_compare_out_dir",
+        default="output/deadlift_compare",
+        help="デッドリフト比較クリップ/結果JSONの保存先ディレクトリ",
     )
 
 
