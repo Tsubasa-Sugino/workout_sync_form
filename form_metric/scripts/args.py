@@ -1,0 +1,197 @@
+import argparse
+
+
+def add_common_runtime_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--model", default="models/pose_landmarker_heavy.task")
+    parser.add_argument("--visibility_th", type=float, default=0.2)
+    parser.add_argument(
+        "--min_visible_keypoints",
+        type=int,
+        default=4,
+        help="主要8関節中、可視判定を満たす必要本数",
+    )
+
+
+def add_squat_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--knee_threshold_deg",
+        type=float,
+        default=100.0,
+        help="膝角がこの値未満の区間をスクワット区間として採用",
+    )
+    parser.add_argument(
+        "--min_low_knee_frames",
+        type=int,
+        default=4,
+        help="膝角が閾値未満で連続する最小フレーム数",
+    )
+    parser.add_argument(
+        "--pre_frames",
+        type=int,
+        default=12,
+        help="検出区間の前に足すフレーム数",
+    )
+    parser.add_argument(
+        "--post_frames",
+        type=int,
+        default=12,
+        help="検出区間の後に足すフレーム数",
+    )
+    parser.add_argument(
+        "--merge_gap_frames",
+        type=int,
+        default=10,
+        help="近い検出区間を結合する最大ギャップ",
+    )
+    parser.add_argument(
+        "--ema_alpha",
+        type=float,
+        default=0.25,
+        help="膝角平滑化のEMA係数",
+    )
+    parser.add_argument(
+        "--squat_pca_step_size",
+        type=int,
+        default=2,
+        help="PCA+DTW でターゲットを走査するステップ幅（フレーム）",
+    )
+    parser.add_argument(
+        "--squat_pca_dtw_threshold",
+        type=float,
+        default=0.0,
+        help="PCA+DTW 検出しきい値。<=0 のときは自動推定",
+    )
+    parser.add_argument(
+        "--squat_compare_out_dir",
+        default="output/squat_compare",
+        help="スクワット比較クリップ/結果JSONの保存先ディレクトリ",
+    )
+
+
+def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--deadlift_high_min_deg",
+        type=float,
+        default=170.0,
+        help="デッドリフト開始/終了判定に使う膝角の下限",
+    )
+    parser.add_argument(
+        "--deadlift_high_max_deg",
+        type=float,
+        default=180.0,
+        help="デッドリフト開始/終了判定に使う膝角の上限",
+    )
+    parser.add_argument(
+        "--deadlift_min_drop_deg",
+        type=float,
+        default=12.0,
+        help="開始角度から必要な最小屈曲量",
+    )
+    parser.add_argument(
+        "--deadlift_min_recovery_deg",
+        type=float,
+        default=10.0,
+        help="最小角度から必要な最小伸展量",
+    )
+    parser.add_argument(
+        "--deadlift_min_rep_frames",
+        type=int,
+        default=8,
+        help="デッドリフト1レップ最小フレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_max_rep_frames",
+        type=int,
+        default=240,
+        help="デッドリフト1レップ最大フレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_pre_frames",
+        type=int,
+        default=10,
+        help="デッドリフト検出区間の前に足すフレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_post_frames",
+        type=int,
+        default=10,
+        help="デッドリフト検出区間の後に足すフレーム数",
+    )
+    parser.add_argument(
+        "--deadlift_merge_gap_frames",
+        type=int,
+        default=0,
+        help="近いデッドリフト検出区間を結合する最大ギャップ",
+    )
+    parser.add_argument(
+        "--deadlift_ema_alpha",
+        type=float,
+        default=0.25,
+        help="デッドリフト膝角平滑化のEMA係数",
+    )
+    parser.add_argument(
+        "--deadlift_pca_step_size",
+        type=int,
+        default=2,
+        help="PCA+DTW でターゲットを走査するステップ幅（フレーム）",
+    )
+    parser.add_argument(
+        "--deadlift_pca_dtw_threshold",
+        type=float,
+        default=0.0,
+        help="PCA+DTW 検出しきい値。<=0 のときは自動推定",
+    )
+    parser.add_argument(
+        "--deadlift_compare_out_dir",
+        default="output/deadlift_compare",
+        help="デッドリフト比較クリップ/結果JSONの保存先ディレクトリ",
+    )
+
+
+def add_benchpress_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--benchpress_compare_out_dir",
+        default="output/benchpress_compare",
+        help="ベンチプレス比較結果JSONの保存先ディレクトリ",
+    )
+
+
+def build_main_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Evaluate form for one or more exercises via a single entrypoint.",
+    )
+    parser.add_argument(
+        "--task",
+        action="append",
+        required=True,
+        metavar="EXERCISE",
+        help="評価種目。複数指定可能（--template/--target と同じ回数指定）。例: squat, deadlift, benchpress",
+    )
+    parser.add_argument(
+        "--template",
+        action="append",
+        required=True,
+        metavar="VIDEO_PATH",
+        help="テンプレート動画。複数指定可能（--task/--target と同じ回数指定）。",
+    )
+    parser.add_argument(
+        "--target",
+        action="append",
+        required=True,
+        metavar="VIDEO_PATH",
+        help="ターゲット動画。複数指定可能（--task/--template と同じ回数指定）。",
+    )
+    add_common_runtime_arguments(parser)
+    add_squat_arguments(parser)
+    add_deadlift_arguments(parser)
+    add_benchpress_arguments(parser)
+    return parser
+
+
+def build_compare_squat_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--template", required=True, help="お手本スクワット動画")
+    parser.add_argument("--target", required=True, help="比較したいスクワット動画")
+    add_common_runtime_arguments(parser)
+    add_squat_arguments(parser)
+    return parser
