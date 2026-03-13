@@ -14,6 +14,12 @@ def add_common_runtime_arguments(parser: argparse.ArgumentParser) -> None:
 
 def add_squat_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
+        "--squat_eval_mode",
+        choices=["auto", "manual"],
+        default="auto",
+        help="スクワット評価モード。auto: PCA+DTWで自動切り出し、manual: 入力動画同士をそのまま比較",
+    )
+    parser.add_argument(
         "--knee_threshold_deg",
         type=float,
         default=100.0,
@@ -69,6 +75,12 @@ def add_squat_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def add_deadlift_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--deadlift_eval_mode",
+        choices=["auto", "manual"],
+        default="auto",
+        help="デッドリフト評価モード。auto: PCA+DTWで自動切り出し、manual: 入力動画同士をそのまま比較",
+    )
     parser.add_argument(
         "--deadlift_high_min_deg",
         type=float,

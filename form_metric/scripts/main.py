@@ -28,17 +28,27 @@ def _build_tasks(
     exercises: List[str],
     template_videos: List[str],
     target_videos: List[str],
+    args: argparse.Namespace,
 ) -> List[Tuple[str, str, str]]:
     norm_exercises = [EXERCISE_ALIASES.get(ex.strip().lower(), ex.strip().lower()) for ex in exercises]
     templates = [tpl.strip() for tpl in template_videos]
     targets = [tgt.strip() for tgt in target_videos]
 
-    # ベンチプレスのみ、template 1本 + target 複数本を許可する
+    def allows_one_template_many_targets(exercise: str) -> bool:
+        if exercise == "benchpress":
+            return True
+        if exercise == "squat" and getattr(args, "squat_eval_mode", "auto") == "manual":
+            return True
+        if exercise == "deadlift" and getattr(args, "deadlift_eval_mode", "auto") == "manual":
+            return True
+        return False
+
+    # 対応モード時のみ、template 1本 + target 複数本を許可する
     if (
         len(norm_exercises) == 1
         and len(templates) == 1
         and len(targets) >= 1
-        and norm_exercises[0] == "benchpress"
+        and allows_one_template_many_targets(norm_exercises[0])
     ):
         ex = norm_exercises[0]
         tpl = templates[0]
@@ -54,7 +64,7 @@ def _build_tasks(
     if not (len(norm_exercises) == len(templates) == len(targets)):
         raise ValueError(
             "The number of --task, --template, and --target values must match "
-            "(except benchpress: 1 template with multiple targets is allowed)."
+            "(except supported modes: 1 template with multiple targets is allowed)."
         )
 
     tasks: List[Tuple[str, str, str]] = []
@@ -88,7 +98,7 @@ def main() -> None:
     parser = build_main_parser()
     args = parser.parse_args()
 
-    tasks = _build_tasks(args.task, args.template, args.target)
+    tasks = _build_tasks(args.task, args.template, args.target, args)
 
     for i, (exercise, template_video, target_video) in enumerate(tasks, start=1):
         print(f"[{i}/{len(tasks)}] exercise={exercise}")
