@@ -13,6 +13,15 @@ import streamlit as st
 
 cv = cv2
 
+EVAL_ROUTE_OPTIONS = [
+    "自動切り出しでそのまま評価へ進む",
+    "手動切り出しで自分の動画も切り出す",
+]
+EVAL_ROUTE_MAP = {
+    "自動切り出しでそのまま評価へ進む": "auto",
+    "手動切り出しで自分の動画も切り出す": "manual",
+}
+
 
 def init_state() -> None:
     """Initialize session state used by this page."""
@@ -306,13 +315,27 @@ def render_cut_result() -> None:
 def render_navigation() -> None:
     """Render navigation buttons."""
 
+    st.markdown("---")
+    st.subheader("次のステップ")
+    selected_route = st.radio(
+        "評価方法を選択してください",
+        options=EVAL_ROUTE_OPTIONS,
+        key="post_template_trim_mode",
+        horizontal=True,
+    )
+    selected_mode = EVAL_ROUTE_MAP[selected_route]
+    st.session_state["evaluation_mode"] = selected_mode
+
     step1, step2 = st.columns(2)
     with step1:
         if st.button("動画入力に戻る"):
             st.switch_page("pages/upload_videos.py")
     with step2:
-        if st.button("評価画面へ進む"):
-            st.switch_page("pages/form_results.py")
+        if st.button("次へ進む"):
+            if selected_mode == "manual":
+                st.switch_page("pages/video_trimming_manual.py")
+            else:
+                st.switch_page("pages/form_results.py")
 
 
 def main() -> None:

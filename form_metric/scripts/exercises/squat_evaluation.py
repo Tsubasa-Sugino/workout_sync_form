@@ -453,6 +453,109 @@ def _safe_relpath(path: str) -> str:
         return path
 
 
+def _evaluate_manual(
+    template_video: str,
+    target_video: str,
+    tpl_fps: float,
+    tpl_poses: List[Optional[list]],
+    tgt_fps: float,
+    tgt_poses: List[Optional[list]],
+    args: argparse.Namespace,
+) -> None:
+    if len(tpl_poses) < 2:
+        raise ValueError("Template video is too short for manual squat comparison.")
+    if len(tgt_poses) < 2:
+        raise ValueError("Target video is too short for manual squat comparison.")
+
+    tpl_start = 0
+    tpl_end = len(tpl_poses) - 1
+    tgt_start = 0
+    tgt_end = len(tgt_poses) - 1
+
+    tpl_metrics = _segment_metrics(
+        poses=tpl_poses,
+        fps=tpl_fps,
+        seg_start=tpl_start,
+        seg_end=tpl_end,
+    )
+    tgt_metrics = _segment_metrics(
+        poses=tgt_poses,
+        fps=tgt_fps,
+        seg_start=tgt_start,
+        seg_end=tgt_end,
+    )
+    score = _match_score_percent(tpl_metrics, tgt_metrics)
+
+    template_stem = Path(template_video).stem
+    target_stem = Path(target_video).stem
+    base_out_dir = os.path.abspath(args.squat_compare_out_dir)
+    os.makedirs(base_out_dir, exist_ok=True)
+    run_dir = _ensure_unique_dir(
+        os.path.join(base_out_dir, f"{template_stem}_vs_{target_stem}"),
+    )
+
+    template_clip_path = _save_clip(
+        video_path=template_video,
+        start_frame=tpl_start,
+        end_frame=tpl_end,
+        out_path=os.path.join(run_dir, f"{template_stem}_template.mp4"),
+    )
+    target_clip_path = _save_clip(
+        video_path=target_video,
+        start_frame=tgt_start,
+        end_frame=tgt_end,
+        out_path=os.path.join(run_dir, f"{target_stem}_manual_01.mp4"),
+    )
+
+    print("==== Squat compare (manual clip-to-clip) ====")
+    print(f"Template frames: {len(tpl_poses)}")
+    print(f"Target frames: {len(tgt_poses)}")
+    print(f"一致度: {score['overall_percent']:.1f}%")
+    print(
+        "項目別一致度(%): "
+        f"膝の曲げ具合={score['knee_percent']:.1f}, "
+        f"肩の前後={score['shoulder_percent']:.1f}, "
+        f"上下テンポ={score['tempo_percent']:.1f}"
+    )
+    print(
+        f"  (テンポ内訳: down={score['tempo_down_percent']:.1f}, up={score['tempo_up_percent']:.1f})"
+    )
+
+    report = {
+        "exercise": "squat",
+        "mode": "manual",
+        "template_video": _safe_relpath(template_video),
+        "target_video": _safe_relpath(target_video),
+        "template_segment": {
+            "start": tpl_start,
+            "end": tpl_end,
+            "template_clip_path": _safe_relpath(template_clip_path) if template_clip_path else None,
+        },
+        "matches": [
+            {
+                "rep_index": 1,
+                "target_segment": {"start": tgt_start, "end": tgt_end},
+                "match_percent": score["overall_percent"],
+                "metric_match_percent": {
+                    "knee_percent": score["knee_percent"],
+                    "shoulder_percent": score["shoulder_percent"],
+                    "tempo_percent": score["tempo_percent"],
+                    "tempo_down_percent": score["tempo_down_percent"],
+                    "tempo_up_percent": score["tempo_up_percent"],
+                },
+                "template_metrics": tpl_metrics,
+                "target_metrics": tgt_metrics,
+                "target_clip_path": _safe_relpath(target_clip_path) if target_clip_path else None,
+            }
+        ],
+    }
+
+    report_path = os.path.join(run_dir, "result.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    print(f"Saved report: {report_path}")
+
+
 def evaluate(template_video: str, target_video: str, args: argparse.Namespace) -> None:
     from src.pose_runner import PoseLandmarkerRunner
 
@@ -470,6 +573,19 @@ def evaluate(template_video: str, target_video: str, args: argparse.Namespace) -
         visibility_th=args.visibility_th,
         min_visible_keypoints=args.min_visible_keypoints,
     )
+
+    mode = getattr(args, "squat_eval_mode", "auto")
+    if mode == "manual":
+        _evaluate_manual(
+            template_video=template_video,
+            target_video=target_video,
+            tpl_fps=tpl_fps,
+            tpl_poses=tpl_poses,
+            tgt_fps=tgt_fps,
+            tgt_poses=tgt_poses,
+            args=args,
+        )
+        return
 
     tpl_matrix = _poses_to_matrix(tpl_poses)
     tgt_matrix = _poses_to_matrix(tgt_poses)
@@ -583,6 +699,7 @@ def evaluate(template_video: str, target_video: str, args: argparse.Namespace) -
 
     report = {
         "exercise": "squat",
+        "mode": "auto",
         "template_video": _safe_relpath(template_video),
         "target_video": _safe_relpath(target_video),
         "template_segment": {
