@@ -19,6 +19,18 @@ def clear_video_state() -> None:
         "ideal_video_name",
         "uploaded_user_video",
         "uploaded_ideal_video",
+        "saved_clips",
+        "trim_source_file_id",
+        "trim_source_path",
+        "trim_total_frames",
+        "trim_fps",
+        "trim_width",
+        "trim_height",
+        "trim_ranges",
+        "trimmed_videos",
+        "form_eval_signature",
+        "form_eval_output",
+        "form_eval_success",
     ]
     for key in keys_to_clear:
         st.session_state.pop(key, None)
