@@ -1,6 +1,7 @@
 """
 Form Results Page
 """
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -119,7 +120,7 @@ def run_main_evaluation(
     template_video_name: str,
     target_video: bytes,
     target_video_name: str,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, str | None]:
     """Run form_metric/scripts/main.py and return success + output text."""
 
     project_root = Path(__file__).resolve().parents[1]
@@ -127,9 +128,9 @@ def run_main_evaluation(
     model_path = project_root / "form_metric" / "models" / "pose_landmarker_heavy.task"
 
     if not main_script.exists():
-        return False, f"評価スクリプトが見つかりません: {main_script}"
+        return False, f"評価スクリプトが見つかりません: {main_script}", None
     if not model_path.exists():
-        return False, f"モデルファイルが見つかりません: {model_path}"
+        return False, f"モデルファイルが見つかりません: {model_path}", None
 
     try:
         with tempfile.TemporaryDirectory(prefix="form_eval_") as temp_dir:
@@ -162,7 +163,7 @@ def run_main_evaluation(
                 cwd=str(project_root),
             )
     except Exception as exc:
-        return False, f"main.py の実行中に例外が発生しました: {exc}"
+        return False, f"main.py の実行中に例外が発生しました: {exc}", None
 
     outputs: list[str] = []
     stdout = completed.stdout.strip()
@@ -178,9 +179,28 @@ def run_main_evaluation(
             False,
             "main.py が異常終了しました "
             f"(exit code {completed.returncode})\n\n{output_text}",
+            None,
         )
 
-    return True, output_text
+    report_path = _extract_report_path(output_text, project_root)
+    return True, output_text, report_path
+
+
+def _extract_report_path(output_text: str, project_root: Path) -> str | None:
+    """Extract report path from main.py output and normalize it."""
+
+    found = re.findall(r"Saved report:\s*(.+)", output_text)
+    if not found:
+        return None
+
+    candidate = Path(found[-1].strip())
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+    candidate = candidate.resolve()
+
+    if not candidate.exists():
+        return None
+    return str(candidate)
 
 
 def _build_eval_signature(
@@ -251,6 +271,189 @@ def _render_score_only(output_text: str) -> None:
     st.table(entries)
 
 
+def _resolve_media_path(path_text: str | None, project_root: Path) -> Path | None:
+    """Resolve JSON path fields into existing absolute paths."""
+
+    if not path_text:
+        return None
+    candidate = Path(path_text)
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+    candidate = candidate.resolve()
+    if not candidate.exists():
+        return None
+    return candidate
+
+
+def _make_playable_video_bytes(video_path: Path) -> bytes | None:
+    """Return browser-playable video bytes (prefer H.264, fallback to source bytes)."""
+
+    try:
+        stat = video_path.stat()
+        cache_key = f"{video_path.resolve()}::{stat.st_mtime_ns}::{stat.st_size}"
+        cache = st.session_state.setdefault("comparison_video_cache", {})
+        if cache_key in cache:
+            return cache[cache_key]
+    except OSError:
+        return None
+
+    try:
+        source_bytes = video_path.read_bytes()
+    except OSError:
+        return None
+
+    # video_trimming.py と同じく ffmpeg で H.264 化を試みる
+    h264_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    h264_temp.close()
+    playable_bytes = source_bytes
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", str(video_path),
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-an",
+                h264_temp.name,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        converted = Path(h264_temp.name).read_bytes()
+        if converted:
+            playable_bytes = converted
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        # ffmpeg が使えない場合は元動画をそのまま試す
+        playable_bytes = source_bytes
+    finally:
+        try:
+            Path(h264_temp.name).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    # キャッシュ肥大化を避ける
+    cache = st.session_state.setdefault("comparison_video_cache", {})
+    if len(cache) > 12:
+        cache.clear()
+    cache[cache_key] = playable_bytes
+    return playable_bytes
+
+
+def _render_video_or_warning(video_path: Path, caption: str) -> None:
+    """Render one video column with graceful fallback message."""
+
+    st.markdown(
+        (
+            "<p style='font-size:1.1rem; font-weight:800; margin:0 0 0.4rem 0;'>"
+            f"{caption}</p>"
+        ),
+        unsafe_allow_html=True,
+    )
+    video_bytes = _make_playable_video_bytes(video_path)
+    if video_bytes is None:
+        st.warning(f"動画の読み込みに失敗しました: {video_path.name}")
+        return
+    if not st.session_state.get("comparison_video_css_applied", False):
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stVideo"] video {
+                width: 100% !important;
+                height: auto !important;
+                object-fit: contain !important;
+                aspect-ratio: auto !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.session_state.comparison_video_css_applied = True
+
+    st.video(video_bytes, format="video/mp4", autoplay=True, loop=True, muted=True)
+
+
+def _render_comparison_videos(report_path: str | None) -> None:
+    """Render the compared template/target videos side by side."""
+
+    st.markdown("---")
+    st.subheader("比較に使われた動画")
+
+    if report_path is None:
+        st.info("比較動画情報が見つかりませんでした。")
+        return
+
+    project_root = Path(__file__).resolve().parents[1]
+    report_file = Path(report_path)
+    if not report_file.exists():
+        st.info("比較動画情報ファイルが見つかりませんでした。")
+        return
+
+    try:
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        st.info("比較動画情報の読み込みに失敗しました。")
+        return
+
+    template_path = _resolve_media_path(
+        str(report.get("template_segment", {}).get("template_clip_path", "")),
+        project_root=project_root,
+    )
+    if template_path is None:
+        template_path = _resolve_media_path(
+            str(report.get("template_video", "")),
+            project_root=project_root,
+        )
+
+    matches = report.get("matches")
+    if isinstance(matches, list) and matches:
+        pair_rows: list[tuple[str, Path]] = []
+        for idx, match in enumerate(matches, start=1):
+            target_path = _resolve_media_path(
+                str(match.get("target_clip_path", "")),
+                project_root=project_root,
+            )
+            if target_path is None:
+                continue
+            rep_idx = match.get("rep_index", idx)
+            percent = match.get("match_percent")
+            label = f"Rep {rep_idx}"
+            if isinstance(percent, (int, float)):
+                label = f"{label} ({float(percent):.1f}%)"
+            pair_rows.append((label, target_path))
+
+        if pair_rows and template_path is not None:
+            options = [row[0] for row in pair_rows]
+            selected = st.selectbox(
+                "表示する比較ペア",
+                options=options,
+                key="comparison_pair_select",
+            )
+            selected_target = dict(pair_rows)[selected]
+            left, right = st.columns(2)
+            with left:
+                _render_video_or_warning(selected_target, "自分の動画")
+            with right:
+                _render_video_or_warning(template_path, "お手本動画")
+            return
+
+    # ベンチプレスなど、rep切り出しを持たない場合のフォールバック
+    target_path = _resolve_media_path(
+        str(report.get("target_video", "")),
+        project_root=project_root,
+    )
+    if template_path is not None and target_path is not None:
+        left, right = st.columns(2)
+        with left:
+            _render_video_or_warning(target_path, "比較に使った自分の動画")
+        with right:
+            _render_video_or_warning(template_path, "比較に使ったお手本動画")
+        return
+
+    st.info("表示可能な比較動画が見つかりませんでした。")
+
+
 def render_result(
     exercise: str | None,
     target_video: bytes,
@@ -281,10 +484,12 @@ def render_result(
         st.session_state.pop("form_eval_signature", None)
         st.session_state.pop("form_eval_output", None)
         st.session_state.pop("form_eval_success", None)
+        st.session_state.pop("form_eval_report_path", None)
+        st.session_state.pop("comparison_video_cache", None)
 
     if st.button("評価を実行", key="run_form_eval"):
         with st.spinner("フォームを評価しています..."):
-            success, output_text = run_main_evaluation(
+            success, output_text, report_path = run_main_evaluation(
                 exercise_task=exercise_task,
                 template_video=template_video,
                 template_video_name=template_video_name,
@@ -294,6 +499,7 @@ def render_result(
         st.session_state.form_eval_signature = current_signature
         st.session_state.form_eval_output = output_text
         st.session_state.form_eval_success = success
+        st.session_state.form_eval_report_path = report_path
 
     output_text = st.session_state.get("form_eval_output")
     if output_text is None:
@@ -303,6 +509,7 @@ def render_result(
     if st.session_state.get("form_eval_success"):
         st.success("評価が完了しました。")
         _render_score_only(output_text)
+        _render_comparison_videos(st.session_state.get("form_eval_report_path"))
     else:
         st.error("評価に失敗しました。ログを確認してください。")
         st.code(output_text)

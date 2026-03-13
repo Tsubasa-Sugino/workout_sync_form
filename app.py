@@ -31,6 +31,9 @@ def clear_video_state() -> None:
         "form_eval_signature",
         "form_eval_output",
         "form_eval_success",
+        "form_eval_report_path",
+        "comparison_video_cache",
+        "comparison_video_css_applied",
     ]
     for key in keys_to_clear:
         st.session_state.pop(key, None)
