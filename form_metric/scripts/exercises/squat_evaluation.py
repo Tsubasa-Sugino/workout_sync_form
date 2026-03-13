@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -375,8 +376,46 @@ def _save_clip(video_path: str, start_frame: int, end_frame: int, out_path: str)
     if e <= s:
         cap.release()
         return None
+    cap.release()
 
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    out_dir = os.path.dirname(out_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    # Prefer ffmpeg clipping to keep source display orientation/aspect behavior.
+    start_sec = s / fps
+    duration_sec = (e - s + 1) / fps
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-ss", f"{start_sec:.6f}",
+                "-t", f"{duration_sec:.6f}",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-an",
+                out_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+            return out_path
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        pass
+
+    if os.path.exists(out_path):
+        os.remove(out_path)
+
+    # Fallback to OpenCV clipping when ffmpeg is unavailable.
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     writer = cv2.VideoWriter(
         out_path,
         cv2.VideoWriter_fourcc(*"mp4v"),
