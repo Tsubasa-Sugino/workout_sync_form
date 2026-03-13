@@ -29,13 +29,40 @@ def guard_missing_videos(
 def render_videos(user_video: bytes, ideal_video: bytes) -> None:
     """Render uploaded and ideal videos side by side."""
 
+    saved_clips: list[dict] = st.session_state.get(
+        "saved_clips", [],
+    )
+
     left, right = st.columns(2)
     with left:
         st.subheader("自分の動画")
-        st.video(user_video, autoplay=True, loop=True, muted=True)
+        if saved_clips:
+            clip_names = [c["name"] for c in saved_clips]
+            video_slot = st.empty()
+            selected = st.selectbox(
+                "切り出し動画を選択",
+                options=clip_names,
+                key="results_clip_select",
+            )
+            clip = next(
+                c for c in saved_clips
+                if c["name"] == selected
+            )
+            video_slot.video(
+                clip["bytes"],
+                autoplay=True, loop=True, muted=True,
+            )
+        else:
+            st.video(
+                user_video,
+                autoplay=True, loop=True, muted=True,
+            )
     with right:
         st.subheader("理想のフォーム動画")
-        st.video(ideal_video, autoplay=True, loop=True, muted=True)
+        st.video(
+            ideal_video,
+            autoplay=True, loop=True, muted=True,
+        )
 
 
 def render_result() -> None:
