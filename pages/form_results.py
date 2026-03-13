@@ -518,6 +518,7 @@ def _render_comparison_videos(report_paths: list[str] | None) -> None:
 
     matches = report.get("matches")
     if isinstance(matches, list) and matches:
+        report_mode = str(report.get("mode") or "")
         pair_rows: list[tuple[str, Path]] = []
         for idx, match in enumerate(matches, start=1):
             target_path = _resolve_media_path(
@@ -534,13 +535,16 @@ def _render_comparison_videos(report_paths: list[str] | None) -> None:
             pair_rows.append((label, target_path))
 
         if pair_rows and template_path is not None:
-            options = [row[0] for row in pair_rows]
-            selected = st.selectbox(
-                "表示する比較ペア",
-                options=options,
-                key="comparison_pair_select",
-            )
-            selected_target = dict(pair_rows)[selected]
+            if report_mode == "manual" or len(pair_rows) == 1:
+                selected_target = pair_rows[0][1]
+            else:
+                options = [row[0] for row in pair_rows]
+                selected = st.selectbox(
+                    "表示する比較ペア",
+                    options=options,
+                    key="comparison_pair_select",
+                )
+                selected_target = dict(pair_rows)[selected]
             left, right = st.columns(2)
             with left:
                 _render_video_or_warning(selected_target, "自分の動画")
