@@ -207,11 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 
-sandbox/
-clips/
-.vscode/
-**/result/*.mp4
-*.html
-*.png
-*.mp4
-*.json
+
