@@ -14,6 +14,13 @@ import tempfile
 import cv2
 import streamlit as st
 
+
+st.set_page_config(
+    page_title="KinNi Kun",
+    page_icon="🏋️",
+    layout="centered",
+)
+
 cv = cv2
 
 EXERCISE_TO_TASK = {

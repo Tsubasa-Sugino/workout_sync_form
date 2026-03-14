@@ -5,6 +5,13 @@ Video Upload Page
 import streamlit as st
 
 
+st.set_page_config(
+    page_title="KinNi Kun",
+    page_icon="🏋️",
+    layout="centered",
+)
+
+
 def render_header() -> None:
     """Render the page title and selected exercise."""
 

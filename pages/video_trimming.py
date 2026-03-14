@@ -11,6 +11,13 @@ import tempfile
 import cv2
 import streamlit as st
 
+
+st.set_page_config(
+    page_title="KinNi Kun",
+    page_icon="🏋️",
+    layout="centered",
+)
+
 cv = cv2
 
 EVAL_ROUTE_OPTIONS = [
@@ -109,7 +116,7 @@ def ensure_video_loaded() -> bool:
 
 
 def add_range() -> None:
-    """Append a new trimming range using current frame as a base."""
+    """Set the single trimming range (1 rep) using default bounds."""
 
     total_frames = st.session_state.trim_total_frames
     if total_frames <= 0:
@@ -117,57 +124,55 @@ def add_range() -> None:
 
     start = 0
     end = min(start + 30, total_frames - 1)
-    st.session_state.trim_ranges.append({"start": start, "end": end})
+    st.session_state.trim_ranges = [{"start": start, "end": end}]
 
 
 @st.fragment
 def render_ranges_editor() -> None:
     """Render range sliders with start/end frame previews."""
 
-    st.subheader("切り取り範囲")
     if not st.session_state.trim_ranges:
         add_range()
-
-    if st.button("範囲を追加", key="add_trim_range"):
-        add_range()
+    elif len(st.session_state.trim_ranges) > 1:
+        st.session_state.trim_ranges = [st.session_state.trim_ranges[0]]
 
     total_frames = st.session_state.trim_total_frames
     fps = st.session_state.trim_fps or 30.0
     max_frame = max(total_frames - 1, 0)
     video_path = st.session_state.trim_source_path
 
-    for idx, trim_range in enumerate(st.session_state.trim_ranges):
-        st.markdown(f"**範囲 {idx + 1}**")
-        start_end = st.slider(
-            f"範囲 {idx + 1} (開始, 終了)",
-            min_value=0,
-            max_value=max_frame,
-            value=(trim_range["start"], trim_range["end"]),
-            step=1,
-            key=f"trim_range_slider_{idx}",
-        )
-        start = start_end[0]
-        end = start_end[1]
-        st.session_state.trim_ranges[idx]["start"] = start
-        st.session_state.trim_ranges[idx]["end"] = end
+    trim_range = st.session_state.trim_ranges[0]
+    st.markdown("**切り取り範囲(開始, 終了)**")
+    start_end = st.slider(
+        "お手本動画の切り出しは 1rep 分のみ対応しています。",
+        min_value=0,
+        max_value=max_frame,
+        value=(trim_range["start"], trim_range["end"]),
+        step=1,
+        key="trim_range_slider_0",
+    )
+    start = start_end[0]
+    end = start_end[1]
+    st.session_state.trim_ranges[0]["start"] = start
+    st.session_state.trim_ranges[0]["end"] = end
 
-        col_start, col_end = st.columns(2)
-        with col_start:
-            st.caption(
-                f"開始: Frame {start}"
-                f" ({start / fps:.2f}s)"
-            )
-            frame_s = read_frame_rgb(video_path, start)
-            if frame_s is not None:
-                st.image(frame_s)
-        with col_end:
-            st.caption(
-                f"終了: Frame {end}"
-                f" ({end / fps:.2f}s)"
-            )
-            frame_e = read_frame_rgb(video_path, end)
-            if frame_e is not None:
-                st.image(frame_e)
+    col_start, col_end = st.columns(2)
+    with col_start:
+        st.caption(
+            f"開始: Frame {start}"
+            f" ({start / fps:.2f}s)"
+        )
+        frame_s = read_frame_rgb(video_path, start)
+        if frame_s is not None:
+            st.image(frame_s)
+    with col_end:
+        st.caption(
+            f"終了: Frame {end}"
+            f" ({end / fps:.2f}s)"
+        )
+        frame_e = read_frame_rgb(video_path, end)
+        if frame_e is not None:
+            st.image(frame_e)
 
 
 def cut_videos() -> list[dict[str, object]]:
@@ -283,7 +288,7 @@ def render_cut_result() -> None:
 
     if st.button("動画を切り出す", key="run_video_cut"):
         if not st.session_state.trim_ranges:
-            st.warning("切り取り範囲を1つ以上追加してください。")
+            st.warning("切り取り範囲（1rep）を設定してください。")
         else:
             with st.spinner("動画を切り出しています..."):
                 st.session_state.trimmed_videos = cut_videos()
@@ -298,9 +303,11 @@ def render_cut_result() -> None:
                 f"{clip['name']}"
                 f" (Frame {clip['start']} - {clip['end']})"
             )
-            st.video(clip["bytes"])
+            _, preview_col, _ = st.columns([1, 2, 1])
+            with preview_col:
+                st.video(clip["bytes"], autoplay=True)
 
-        # Persist clips for use on the results page.
+        # Persist single template clip for use on the results page.
         st.session_state["saved_clips"] = [
             {
                 "name": c["name"],
@@ -308,7 +315,7 @@ def render_cut_result() -> None:
                 "end": c["end"],
                 "bytes": c["bytes"],
             }
-            for c in st.session_state.trimmed_videos
+            for c in st.session_state.trimmed_videos[:1]
         ]
 
 
@@ -341,17 +348,12 @@ def render_navigation() -> None:
 def main() -> None:
     """Render video trimming UI page."""
 
-    st.title("動画切り出し")
+    st.title("理想フォーム動画切り出し")
     init_state()
 
     if not ensure_video_loaded():
         return
 
-    st.write(
-        "総フレーム数: "
-        f"{st.session_state.trim_total_frames} | "
-        f"FPS: {st.session_state.trim_fps:.2f}"
-    )
     render_ranges_editor()
     render_cut_result()
     render_navigation()
